@@ -1,9 +1,15 @@
 # AWS interface tests.
 
+import boto3_type_annotations.s3      as s3
+import boto3_type_annotations.sqs     as sqs
+import boto3_type_annotations.lambda_ as lam
+
 from utility import *
 from aws     import s3_client, s3_resource
 from aws     import sqs_client, sqs_resource
 from aws     import sqs_queue_name, get_sqs_queue, create_sqs_queue
+from aws     import LAMBDA_RUNTIMES, get_lambda_client
+from aws     import get_lambda_functions, get_lambda_function_names
 
 
 # =============================================================================
@@ -19,22 +25,22 @@ AWS_TEST_QUEUE = 'emma-test3-staging'
 # =============================================================================
 
 
-def list_s3_buckets(s3=None):
+def list_s3_buckets(s3_obj=None):
     """
-    :param Client|ServiceResource s3:
+    :param s3.Client|s3.ServiceResource s3_obj:
     """
-    s3_cli   = s3_client(s3)
+    s3_cli   = s3_client(s3_obj)
     response = s3_cli.list_buckets()
     for bucket in response.get('Buckets', []):
         show(f"{bucket['Name']} {'=' * 40}")
         show(bucket)
 
 
-def show_s3_bucket_names(s3=None):
+def show_s3_bucket_names(s3_obj=None):
     """
-    :param Client|ServiceResource s3:
+    :param s3.Client|s3.ServiceResource s3_obj:
     """
-    s3_res = s3_resource(s3)
+    s3_res = s3_resource(s3_obj)
     for bucket in s3_res.buckets.all():
         show(bucket.name)
 
@@ -69,7 +75,7 @@ def s3_trials(via_client=True):
 
 def show_sqs_queue(queue):
     """
-    :param Queue queue:                 SQS service resource instance to use.
+    :param sqs.Queue queue:
     """
     show(sqs_queue_name(queue))
     show({**{'url': queue.url}, **queue.attributes})
@@ -77,7 +83,7 @@ def show_sqs_queue(queue):
 
 def show_sqs_queue_names(sqs_res=None):
     """
-    :param ServiceResource sqs_res:     SQS service resource instance to use.
+    :param sqs.ServiceResource sqs_res:
     """
     sqs_res = sqs_resource(sqs_res)
     for queue in sqs_res.queues.all():
@@ -86,9 +92,8 @@ def show_sqs_queue_names(sqs_res=None):
 
 def show_sqs_queues(match=None, sqs_res=None):
     """
-    :param str             match:   If given, only list queues whose name
-                                        matches the pattern.
-    :param ServiceResource sqs_res: SQS service resource instance to use.
+    :param str match:   Only list queues with names matching the pattern.
+    :param sqs.ServiceResource sqs_res:
     """
     sqs_res = sqs_resource(sqs_res)
     for queue in sqs_res.queues.all():
@@ -97,12 +102,12 @@ def show_sqs_queues(match=None, sqs_res=None):
             show('--------------')
 
 
-def show_sqs_queues_client(match=None, sqs_cli=None):
+def show_sqs_queues_client(match=None, sqs_obj=None):
     """
-    :param str    match:        If given, only list queues with matching URLs.
-    :param Client sqs_cli:      Optional S3 sqs_cli.
+    :param str match:   Only list queues with URLs matching the pattern.
+    :param sqs.Client|sqs.ServiceResource sqs_obj:
     """
-    sqs_cli  = sqs_client(sqs_cli)
+    sqs_cli  = sqs_client(sqs_obj)
     response = sqs_cli.list_queues()
     for url in response.get('QueueUrls', []):
         if match is None or match in url:
@@ -219,11 +224,73 @@ def sqs_trials(via_client=True, send_msgs=True, recv_msgs=True):
 
 
 # =============================================================================
+# AWS Lambda
+# =============================================================================
+
+
+def show_lambda_functions(cli=None, all_versions=False):
+    """
+    :param lam.Client cli:
+    :param bool       all_versions:
+    """
+    show(get_lambda_functions(cli, all_versions))
+
+
+def show_lambda_layers(cli=None, runtime=None):
+    """
+    :param lam.Client cli:
+    :param str        runtime:          One of LAMBDA_RUNTIMES
+    """
+    cli = cli or get_lambda_client()
+    kwargs = {}
+    if runtime:
+        kwargs['CompatibleRuntime'] = runtime
+    result = cli.list_layers(**kwargs)
+    result = result.get('Layers', ['FAIL'])
+    show(result)
+
+
+def show_lambda_mappings(cli=None, function=None):
+    """
+    :param lam.Client cli:
+    :param str        function:     If not specified, all functions are shown.
+    """
+    cli = cli or get_lambda_client()
+    result = {}
+    if function:
+        names = [function]
+    else:
+        names = get_lambda_function_names(cli)
+    for name in names:
+        response = cli.list_event_source_mappings(FunctionName=name)
+        result[name] = response.get('EventSourceMappings', ['FAIL'])
+    show(result)
+
+
+def lambda_trials():
+    cli = get_lambda_client()
+
+    if True:
+        show_header('Lambda functions')
+        show(get_lambda_function_names(cli))
+        show(get_lambda_functions(cli))
+
+    if True:
+        show_header('Lambda layers')
+        show_lambda_layers(cli)
+
+    if True:
+        show_header('Lambda event source mappings')
+        show_lambda_mappings(cli)
+
+
+# =============================================================================
 # Tests
 # =============================================================================
 
 
 def trials():
     show_section('AWS TRIALS')
-    s3_trials()
-    sqs_trials(send_msgs=False)
+    # s3_trials()
+    # sqs_trials(send_msgs=False)
+    lambda_trials()

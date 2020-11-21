@@ -19,9 +19,9 @@ DEBUG = AWS_DEBUG or EMMA_DEBUG or IA_DEBUG
 # =============================================================================
 
 
-def get_bucket(bucket=None) -> Bucket:
+def get_bucket(bucket=None) -> s3.Bucket:
     """
-    :param str|Bucket|None bucket:      S3 bucket name or Bucket instance.
+    :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
     """
     bucket = bucket or IA_BUCKET
     return get_s3_bucket(bucket)
@@ -31,7 +31,7 @@ def get_submissions(bucket=None):
     """
     Retrieve all submissions present in an out-bound EMMA queue on AWS S3.
 
-    :param str|Bucket|None bucket:      S3 bucket name or Bucket instance.
+    :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
 
     :returns: All un-retrieved submissions IDs with their related files.
     :rtype:   SipTable
@@ -61,7 +61,7 @@ def parse_submissions(submissions, bucket=None):
     extract metadata values.
 
     :param SipTable submissions:
-    :param str|Bucket|None bucket:      S3 bucket name or Bucket instance.
+    :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
 
     :returns: Metadata for each submission ID.
     :rtype:   dict
@@ -86,7 +86,7 @@ def upload_submissions(submissions, bucket=None):
     For each submission, upload file and metadata to IA.
 
     :param SipTable submissions:
-    :param str|Bucket|None bucket:      S3 bucket name or Bucket instance.
+    :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
 
     :return: The list of completed submission IDs.
     :rtype:  list[str]
@@ -149,7 +149,7 @@ def remove_submissions(submissions, bucket=None):
     Remove completed submissions from the AWS S3 bucket.
 
     :param SipTable submissions:
-    :param str|Bucket|None bucket:      S3 bucket name or Bucket instance.
+    :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
 
     :return: The list of removed files (AWS object keys).
     :rtype:  list[str]
@@ -185,6 +185,26 @@ def process():
     removed    = remove_submissions(table, bucket)
     return len(removed)
 
+
+# =============================================================================
+# AWS Lambda
+# =============================================================================
+
+
+def handler(event, context):
+    """
+    Lambda function entry point handler.
+    TODO: ???
+
+    @see https://docs.aws.amazon.com/lambda/index.html
+    @see https://docs.aws.amazon.com/lambda/latest/dg/welcome.html
+    @see https://codeburst.io/aws-lambda-functions-made-easy-1fae0feeab27
+
+    :param dict event:
+    :param any  context:
+
+    """
+    pass
 
 # =============================================================================
 # Main program
