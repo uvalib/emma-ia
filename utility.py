@@ -1,4 +1,6 @@
 # utility.py
+#
+# Common definitions.
 
 # noinspection PyUnresolvedReferences
 import logging

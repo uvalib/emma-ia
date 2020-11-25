@@ -1,4 +1,6 @@
-# AWS interface.
+# aws.py
+#
+# AWS interface definitions.
 
 import boto3
 import boto3_type_annotations.s3      as s3

@@ -1,4 +1,6 @@
-# InternetArchive interface tests.
+# tests/ia.py
+#
+# InternetArchive interface trials.
 
 from utility import *
 from ia      import ia_get_session, ia_get_files, ia_search

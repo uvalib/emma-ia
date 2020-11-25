@@ -1,4 +1,6 @@
-# Operating environment tests.
+# tests/sys.py
+#
+# Operating environment trials.
 
 import os  # for environment variables
 

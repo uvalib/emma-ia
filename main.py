@@ -1,4 +1,9 @@
-# This is a sample Python script.
+# main.py
+#
+# Core functionality.
+
+import os
+import tempfile
 
 from aws       import *
 from emma      import *
@@ -92,8 +97,8 @@ def upload_submissions(submissions, bucket=None):
     :rtype:  list[str]
 
     """
+    session   = None
     s3_bucket = get_bucket(bucket)
-    session   = ia_get_session()
     for sid, submission in submissions.items():
         DEBUG and show_header(f"ENTRY {sid} METADATA:")
 
@@ -101,41 +106,35 @@ def upload_submissions(submissions, bucket=None):
         emma_metadata = submission.metadata
         metadata = ia_metadata(emma_metadata)
 
-        # Open a stream to the submitted data file and upload it to IA.
+        # Download a copy of the submitted data file.
         file = submission.data_file
-        bio  = io.BytesIO()
-        s3_bucket.Object(file).download_fileobj(bio)
+        obj  = s3_bucket.Object(file)  # type: s3.Object
+        size = obj.content_length
+        tmp  = tempfile.mktemp()
+        obj.download_file(tmp)
 
         # Upload the submitted data file to IA.
         ia_id = emma_metadata.get('emma_repositoryRecordId')
         if DEBUG:
-            show_header(f'SUBMIT "{ia_id}" (file: {file}) TO IA:')
-            show(f' \
-            item.upload_file( \n\
-                bio,                [{len(bio.getvalue())} bytes] \n\
-                key=file,           [{file}] \n\
-                metadata=metadata, \n\
-                queue_derive=False, \n\
-                verbose=True, \n\
-                delete=False, \n\
-                debug=True, \n\
-             ) \
-            ')
+            show_header(f'SUBMIT "{ia_id}" ({file}, size: {size} bytes) TO IA')
         try:
-            item = internetarchive.Item(session, ia_id)
-            item.upload_file(
-                bio,
+            session = session or ia_get_session()
+            item = session.get_item(ia_id)
+            item.upload(
+                tmp,
                 key=file,
                 metadata=metadata,
                 queue_derive=False,
                 verbose=True,
                 delete=False,
                 debug=True,
-             )
+            )
             submission.completed = True
         except Exception as error:
             DEBUG and show(f'\tERROR: {error}')
             logging.error(error)
+        finally:
+            os.remove(tmp)
 
     completed = []
     for sid, submission in submissions.items():
@@ -178,33 +177,17 @@ def process():
     :rtype:  int
 
     """
-    bucket     = get_bucket()
-    table      = get_submissions(bucket)
-    _metadata  = parse_submissions(table, bucket)
-    _completed = upload_submissions(table, bucket)
-    removed    = remove_submissions(table, bucket)
-    return len(removed)
+    bucket      = get_bucket()
+    table       = get_submissions(bucket)
+    _metadata   = parse_submissions(table, bucket)
+    _completed  = upload_submissions(table, bucket)
+    removed     = remove_submissions(table, bucket)
+    submissions = []
+    for object_key in removed:
+        if object_key.endswith('.xml'):
+            submissions.append(object_key)
+    return len(submissions)
 
-
-# =============================================================================
-# AWS Lambda
-# =============================================================================
-
-
-def handler(event, context):
-    """
-    Lambda function entry point handler.
-    TODO: ???
-
-    @see https://docs.aws.amazon.com/lambda/index.html
-    @see https://docs.aws.amazon.com/lambda/latest/dg/welcome.html
-    @see https://codeburst.io/aws-lambda-functions-made-easy-1fae0feeab27
-
-    :param dict event:
-    :param any  context:
-
-    """
-    pass
 
 # =============================================================================
 # Main program
@@ -223,4 +206,4 @@ if __name__ == '__main__':
     else:
         count = process()
         show('')
-        show(f'{count} SUBMISSIONS PROCESSED')
+        show(f"{count} SUBMISSION{'S' if count != 1 else ''} PROCESSED")

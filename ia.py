@@ -1,4 +1,6 @@
-# InternetArchive interface
+# ia.py
+#
+# Internet Archive interface definitions.
 
 import internetarchive
 

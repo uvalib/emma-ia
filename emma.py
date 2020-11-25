@@ -1,3 +1,5 @@
+# emma.py
+#
 # EMMA metadata definitions.
 
 import re
@@ -35,29 +37,48 @@ EMMA_FIELD_MAP: Dict[str, Union[str, Dict[str, Union[str, Dict]]]] = {
 
     # DIRECT TRANSLATIONS
     #
-    # * field:  The matching IA metadata field.
-    # * values: A mapping of EMMA field values to IA field values.
+    # * field:  The equivalent IA metadata field.
+    # * map:    A mapping of EMMA field values to IA field values.
     # -------------------------------------------------------------------------
     'dc_type': {
-        'field':  'mediatype',
-        'values': {'text': 'texts', 'sound': 'audio', 'dataset': 'data'}
+        'field': 'mediatype',
+        'map':   {'text': 'texts', 'sound': 'audio', 'dataset': 'data'}
     },
 
-    # MISSING MAPPINGS - TODO: ???
+    # EMMA-UNIQUE MAPPINGS
     #
-    # EMMA field                Non-existent IA field
+    # These are EMMA metadata fields mapped on to the columns defined by IA in
+    # the CSV files they have generated in order to support EMMA bulk-upload.
+    #
+    # According to a discussion with IA, although these are not listed at the
+    # URL below, they will be retained with metadata associated with the
+    # uploaded file, and, in fact, should be available for inclusion in the
+    # index feed to Benetech.
+    #
+    # EMMA field                IA CSV column name
     # ------------------------  -----------------------------------------------
-    # 'rem_metadataSource':       'metadata_source',
-    # 'rem_complete':             'portion',
-    # 'rem_coverage':             'portion_description',
-    # 'rem_remediation':          'remediated_aspects',
-    # 'rem_remediatedBy':         'remediated_by',
-    # 'emma_lastRemediationNote': 'remediation_comments',
-    # 'rem_status':               'remediation_status',
-    # 'bib_seriesType':           'series_type',
-    # 'rem_quality':              'text_quality',
-    # 'bib_version':              'version',
-    # 'bib_volume':               'volume',
+    'rem_metadataSource':       'metadata_source',
+    'rem_coverage':             'portion_description',
+    'rem_remediation':          'remediated_aspects',
+    'rem_remediatedBy':         'remediated_by',
+    'emma_lastRemediationNote': 'remediation_comments',
+    'rem_status':               'remediation_status',
+    'bib_seriesType':           'series_type',
+    'rem_quality':              'text_quality',
+    'bib_version':              'version',
+    'bib_volume':               'volume',
+
+    # INDIRECT TRANSLATIONS
+    #
+    # * field:     The equivalent IA metadata field.
+    # * transform: A mapping of EMMA field values to IA field values.
+    # -------------------------------------------------------------------------
+    'rem_complete': {
+        'field':     'portion',
+        'transform': lambda v:  # portion => !complete
+                     v.lower() != 'true' if isinstance(v, str) else \
+                     'false' if v else 'true',
+    },
 
     # All IA fields given on:
     # @see https://archive.org/services/docs/api/metadata-schema/index.html?highlight=metadata%20fields
@@ -191,7 +212,10 @@ def ia_metadata(emma_metadata):
             ia_value = emma_metadata[field]
             if isinstance(entry, dict):
                 ia_field = entry['field']
-                ia_value = entry['values'].get(ia_value, ia_value)
+                if 'map' in entry:
+                    ia_value = entry['map'][ia_value]
+                elif 'transform' in entry:
+                    ia_value = entry['transform'](ia_value)
             if is_present(ia_value):
                 result[ia_field] = ia_value
     EMMA_DEBUG and show(result, pp_override=pp_wide)

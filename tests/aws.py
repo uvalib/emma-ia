@@ -1,4 +1,6 @@
-# AWS interface tests.
+# tests/aws.py
+#
+# AWS interface trials.
 
 import boto3_type_annotations.s3      as s3
 import boto3_type_annotations.sqs     as sqs

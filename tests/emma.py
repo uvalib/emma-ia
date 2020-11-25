@@ -1,4 +1,6 @@
-# EMMA metadata definition tests.
+# tests/emma.py
+#
+# EMMA metadata definition trials.
 
 from utility import *
 

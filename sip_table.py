@@ -1,5 +1,6 @@
 # sip_table.py
-
+#
+# A table associating a SID (submission ID) with a Sip instance.
 
 from sip import *
 
@@ -40,6 +41,9 @@ class SipTable:
 
     def __repr__(self) -> str:
         return pp.pformat(self._table)
+
+    def __bool__(self):
+        return len(self._table) > 0
 
     # =========================================================================
     # :section:

@@ -1,5 +1,6 @@
 # sip.py
-
+#
+# A SipTable entry.
 
 from utility import *
 
