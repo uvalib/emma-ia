@@ -2,9 +2,9 @@
 #
 # Operating environment trials.
 
-import os  # for environment variables
-
-from utility import *
+# noinspection PyUnresolvedReferences
+from common import *
+from output import *
 
 
 # =============================================================================

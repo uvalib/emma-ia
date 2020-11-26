@@ -6,12 +6,15 @@ import boto3_type_annotations.s3      as s3
 import boto3_type_annotations.sqs     as sqs
 import boto3_type_annotations.lambda_ as lam
 
-from utility import *
-from aws     import s3_client, s3_resource
-from aws     import sqs_client, sqs_resource
-from aws     import sqs_queue_name, get_sqs_queue, create_sqs_queue
-from aws     import LAMBDA_RUNTIMES, get_lambda_client
-from aws     import get_lambda_functions, get_lambda_function_names
+# noinspection PyUnresolvedReferences
+from common import *
+from output import *
+from aws    import emma_bucket_name
+from aws    import s3_client, s3_resource
+from aws    import sqs_client, sqs_resource
+from aws    import sqs_queue_name, get_sqs_queue, create_sqs_queue
+from aws    import get_lambda_client
+from aws    import get_lambda_functions, get_lambda_function_names
 
 
 # =============================================================================
@@ -66,8 +69,9 @@ def s3_trials(via_client=True):
     # Copy file to bucket.
     if False:
         src = 'emma.py'
-        show_header('Copy to S3')
-        copy_to_s3_bucket(src, IA_BUCKET)
+        bkt = emma_bucket_name()
+        show_header(f'Copy to S3 bucket "{bkt}"')
+        copy_to_s3_bucket(src, bkt)
 
 
 # =============================================================================
@@ -293,6 +297,6 @@ def lambda_trials():
 
 def trials():
     show_section('AWS TRIALS')
-    # s3_trials()
-    # sqs_trials(send_msgs=False)
+    s3_trials()
+    sqs_trials(send_msgs=False)
     lambda_trials()

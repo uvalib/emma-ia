@@ -2,7 +2,9 @@
 #
 # A SipTable entry.
 
-from utility import *
+# noinspection PyUnresolvedReferences
+from common import *
+from output import *
 
 
 class Sip:

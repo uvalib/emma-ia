@@ -2,8 +2,10 @@
 #
 # InternetArchive interface trials.
 
-from utility import *
-from ia      import ia_get_session, ia_get_files, ia_search
+# noinspection PyUnresolvedReferences
+from common import *
+from output import *
+from ia     import ia_get_session, ia_get_files, ia_search
 
 
 # =============================================================================
@@ -32,7 +34,7 @@ def trials():
         show_header(f'SEARCH for "{terms}" ({count}):')
         for item in ia_search(terms, count, session=session):
             show('')
-            show(item, pp_override=pp_wide)
+            show(item, width=PP_WIDE)
             if True:  # Show the files associated with the entry.
                 ia_id = item['identifier']
                 files = ia_get_files(ia_id)

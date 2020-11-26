@@ -1,15 +1,14 @@
-# utility.py
+# output.py
 #
-# Common definitions.
+# Console output support.
 
-# noinspection PyUnresolvedReferences
-import logging
 import math
 import sys
 
-# noinspection PyUnresolvedReferences
-from typing import Union, Dict, List, Optional, ItemsView, KeysView, ValuesView
 from pprint import PrettyPrinter
+
+# noinspection PyUnresolvedReferences
+from common import *
 
 
 # =============================================================================
@@ -36,43 +35,7 @@ pp_wide = PrettyPrinter(**{**PP_KWARGS, 'width': PP_WIDE})
 
 
 # =============================================================================
-# General
-# =============================================================================
-
-
-def is_blank(value) -> bool:
-    """
-    Indicate whether the argument is a non-value.  True only if value is not a
-    bool, int, float, non-blank str or non-empty list.
-    """
-    return False if value in (0, 0.0, False) else not value
-
-
-def is_present(value) -> bool:
-    """
-    Indicate whether the argument is a non-blank value.
-    """
-    return not is_blank(value)
-
-
-def to_list(value, default=None) -> list:
-    """
-    Transform value to a list, or the default if value is blank.
-    """
-    if isinstance(value, list):
-        return value
-    elif isinstance(value, tuple):
-        return list(value)
-    elif is_present(value):
-        return [value]
-    elif default is None:
-        return []
-    else:
-        return default if isinstance(default, list) else [default]
-
-
-# =============================================================================
-# Console output
+# Functions
 # =============================================================================
 
 

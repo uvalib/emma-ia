@@ -8,7 +8,9 @@ import io
 # noinspection PyPep8Naming
 import xml.etree.ElementTree as XML
 
-from utility import *
+# noinspection PyUnresolvedReferences
+from common import *
+from output import *
 
 
 # =============================================================================
@@ -16,7 +18,7 @@ from utility import *
 # =============================================================================
 
 
-EMMA_DEBUG = True
+EMMA_DEBUG = is_true(os.environ.get('EMMA_DEBUG', True))
 
 EMMA_FIELD_MAP: Dict[str, Union[str, Dict[str, Union[str, Dict]]]] = {
 
@@ -218,7 +220,7 @@ def ia_metadata(emma_metadata):
                     ia_value = entry['transform'](ia_value)
             if is_present(ia_value):
                 result[ia_field] = ia_value
-    EMMA_DEBUG and show(result, pp_override=pp_wide)
+    EMMA_DEBUG and show(result, width=PP_WIDE)
     return result
 
 

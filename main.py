@@ -2,7 +2,6 @@
 #
 # Core functionality.
 
-import os
 import tempfile
 
 from aws       import *
@@ -16,7 +15,8 @@ from sip_table import *
 # =============================================================================
 
 
-DEBUG = AWS_DEBUG or EMMA_DEBUG or IA_DEBUG
+DEBUG   = AWS_DEBUG or EMMA_DEBUG or IA_DEBUG
+DRY_RUN = False
 
 
 # =============================================================================
@@ -28,15 +28,18 @@ def get_bucket(bucket=None) -> s3.Bucket:
     """
     :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
     """
-    bucket = bucket or IA_BUCKET
+    bucket = bucket or ia_bucket_name()
     return get_s3_bucket(bucket)
 
 
-def get_submissions(bucket=None):
+def get_submissions(bucket=None, prefix=''):
     """
     Retrieve all submissions present in an out-bound EMMA queue on AWS S3.
 
     :param str|s3.Bucket|None bucket:   S3 bucket name or instance.
+    :param str|None           prefix:   If None then any/all prefixes allowed;
+                                            by default, keys that have any
+                                            prefix are skipped.
 
     :returns: All un-retrieved submissions IDs with their related files.
     :rtype:   SipTable
@@ -44,7 +47,11 @@ def get_submissions(bucket=None):
     """
     result    = SipTable()
     s3_bucket = get_bucket(bucket)
-    for entry in s3_bucket.objects.all():
+    for entry in s3_bucket.objects.all():  # type: s3.Object
+        if prefix is not None:
+            key_prefix = entry.key.split('/')[0:-1]
+            if '/'.join(key_prefix) != prefix:
+                continue
         file = entry.key
         sid  = re.sub(r'\.[^.]+$', '', file)
         item = 'package' if re.search(r'\.xml$', file) else 'data_file'
@@ -116,25 +123,17 @@ def upload_submissions(submissions, bucket=None):
         # Upload the submitted data file to IA.
         ia_id = emma_metadata.get('emma_repositoryRecordId')
         if DEBUG:
-            show_header(f'SUBMIT "{ia_id}" ({file}, size: {size} bytes) TO IA')
-        try:
-            session = session or ia_get_session()
-            item = session.get_item(ia_id)
-            item.upload(
-                tmp,
-                key=file,
-                metadata=metadata,
-                queue_derive=False,
-                verbose=True,
-                delete=False,
-                debug=True,
-            )
-            submission.completed = True
-        except Exception as error:
-            DEBUG and show(f'\tERROR: {error}')
-            logging.error(error)
-        finally:
-            os.remove(tmp)
+            _to = '[DRY RUN]' if DRY_RUN else 'TO IA'
+            show_header(f'SUBMIT "{ia_id}" (file {file} - {size} bytes) {_to}')
+        session = session or ia_get_session()
+        submission.completed = ia_upload(
+            target=ia_id,
+            files=tmp,
+            metadata=metadata,
+            delete=True,
+            dry_run=DRY_RUN,
+            session=session
+        )
 
     completed = []
     for sid, submission in submissions.items():
@@ -159,12 +158,11 @@ def remove_submissions(submissions, bucket=None):
         if submission.completed:
             object_keys.append(submission.package)
             object_keys.append(submission.data_file)
-    if DEBUG:
-        show_header(f"DELETING {get_bucket(bucket).name} OBJECTS:")
-        show(object_keys)
-    if is_present(object_keys):
-        s3_bucket = get_bucket(bucket)
-        delete_from_s3_bucket(object_keys, s3_bucket)
+    if not DRY_RUN:
+        if DEBUG:
+            show_header(f"DELETING {get_bucket(bucket).name} OBJECTS:")
+            show(object_keys)
+        delete_from_s3_bucket(object_keys, bucket)
     return object_keys
 
 
