@@ -141,3 +141,8 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Dave's stuff
+env.*
+package/scripts/build.ksh
+package/scripts/shell.ksh
