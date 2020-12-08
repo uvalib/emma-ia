@@ -2,9 +2,18 @@
 #
 # Operating environment trials.
 
-# noinspection PyUnresolvedReferences
-from common import *
-from output import *
+
+from app.common import *
+
+
+# =============================================================================
+# Functions
+# =============================================================================
+
+
+def show_env_vars():
+    for k, v in os.environ.items():
+        show(f'{k} = "{v}"')
 
 
 # =============================================================================
@@ -13,9 +22,14 @@ from output import *
 
 
 def trials():
+    show_section('SYSTEM VALUES')
 
-    # List environment variables.
-    if False:
+    if True:
         show_header('Environment variables')
-        for k, v in os.environ.items():
-            show(f'{k} = "{v}"')
+        show_env_vars()
+
+    show_section()
+
+
+if __name__ == '__main__':
+    trials()

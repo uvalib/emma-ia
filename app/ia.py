@@ -1,6 +1,7 @@
-# ia.py
+# app/ia.py
 #
 # Internet Archive interface definitions.
+
 
 import internetarchive
 import tempfile
@@ -10,9 +11,7 @@ from internetarchive import Item
 from requests        import Response
 from requests.models import PreparedRequest
 
-# noinspection PyUnresolvedReferences
-from common import *
-from output import *
+from app.common import *
 
 
 # =============================================================================
@@ -20,20 +19,18 @@ from output import *
 # =============================================================================
 
 
-IA_DEBUG = is_true(os.environ.get('IA_DEBUG', True))
-
 IA_CONFIG = {
     's3': {
-        'access': os.environ.get('IA_ACCESS'),
-        'secret': os.environ.get('IA_SECRET')
+        'access': os.getenv('IA_ACCESS'),
+        'secret': os.getenv('IA_SECRET')
     },
     'logging': {
         'level': 'DEBUG' if IA_DEBUG else 'INFO',
         'file':  os.path.join(tempfile.gettempdir(), 'ia.log')
     },
     'cookies': {
-        'logged-in-user': os.environ.get('IA_USER_COOKIE'),
-        'logged-in-sig':  os.environ.get('IA_SIG_COOKIE')
+        'logged-in-user': os.getenv('IA_USER_COOKIE'),
+        'logged-in-sig':  os.getenv('IA_SIG_COOKIE')
     }
 }
 
@@ -62,8 +59,8 @@ def ia_get_files(identifier, **kwargs):
     """
     Retrieve information about the files associated with the given IA item.
 
-    :param str identifier: IA title identifier.
-    :param kwargs:
+    :param str identifier:  IA title identifier.
+    :param kwargs:          Passed to internetarchive.get_files().
 
     :rtype: list[dict]
 
@@ -78,8 +75,8 @@ def ia_search(terms, count=10, fields=None, session=None):
     """
     Search for items on Archive.org.
 
-    :param str            terms:
-    :param int            count:
+    :param str            terms:    Search term(s).
+    :param int            count:    Number of results to fetch.
     :param list           fields:   Fields to return (def: identifier, title)
     :param ArchiveSession session:
 
@@ -95,8 +92,7 @@ def ia_search(terms, count=10, fields=None, session=None):
         result = session.search_items(terms, params=params, fields=fields)
         return list(result)
     except Exception as error:
-        IA_DEBUG and show(f'\tERROR: {error}')
-        logging.error(error)
+        log_error(error)
         return []
 
 
@@ -131,6 +127,8 @@ def ia_upload(
         IA's S3 storage.
 
     """
+    success      = False
+    files        = to_list(files)
     # checksum     = True   # Guard against re-upload by default.
     checksum     = False  # TODO: See Note [1] above.
     remove_files = False  # By default, upload() will remove each temp file.
@@ -157,21 +155,18 @@ def ia_upload(
             checksum=checksum,
             debug=dry_run
         )
-        success = isinstance(result, list)
+        success = (len(result) == len(files))
         if dry_run:
-            result = result if success else [result]
-            for request in result:  # type: PreparedRequest
+            for request in result:     # type: PreparedRequest
                 _show_prepared_request(request)
         elif success:
-            for response in result:  # type: Response
+            for response in result:    # type: Response
                 success = success and response.ok
     except Exception as error:
-        IA_DEBUG and show(f'\tERROR: {error}')
-        logging.error(error)
+        log_error(error)
         success = False
     finally:
-        if remove_files:
-            files = files if isinstance(files, list) else [files]
+        if success and remove_files and not dry_run:
             for file in files:
                 os.remove(file)
     return success
@@ -190,5 +185,3 @@ def _show_prepared_request(item: PreparedRequest):
 if __name__ == '__main__':
     from tests.ia import trials
     trials()
-    show('')
-    show('DONE')

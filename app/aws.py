@@ -1,21 +1,18 @@
-# tests/emma.py
+# app/aws.py
 #
-# EMMA metadata definition trials.
+# AWS interface definitions.
 
 
-from app.common import *
+from app.aws_s3     import *
+from app.aws_sqs    import *
+from app.aws_lambda import *
 
 
 # =============================================================================
-# Trials
+# Command-line tests.
 # =============================================================================
-
-
-def trials():
-    show_section('EMMA TRIALS')
-    show('(None yet)')
-    show_section()
 
 
 if __name__ == '__main__':
+    from tests.aws import trials
     trials()

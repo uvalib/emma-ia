@@ -1,10 +1,9 @@
-# sip.py
+# app/sip.py
 #
 # A SipTable entry.
 
-# noinspection PyUnresolvedReferences
-from common import *
-from output import *
+
+from app.common import *
 
 
 class Sip:

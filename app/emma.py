@@ -1,24 +1,20 @@
-# emma.py
+# app/emma.py
 #
 # EMMA metadata definitions.
+
 
 import re
 import io
 
-# noinspection PyPep8Naming
-import xml.etree.ElementTree as XML
+import xml.etree.ElementTree as Xml
 
-# noinspection PyUnresolvedReferences
-from common import *
-from output import *
+from app.common import *
 
 
 # =============================================================================
 # Constants
 # =============================================================================
 
-
-EMMA_DEBUG = is_true(os.environ.get('EMMA_DEBUG', True))
 
 EMMA_FIELD_MAP: Dict[str, Union[str, Dict[str, Union[str, Dict]]]] = {
 
@@ -77,9 +73,7 @@ EMMA_FIELD_MAP: Dict[str, Union[str, Dict[str, Union[str, Dict]]]] = {
     # -------------------------------------------------------------------------
     'rem_complete': {
         'field':     'portion',
-        'transform': lambda v:  # portion => !complete
-                     v.lower() != 'true' if isinstance(v, str) else \
-                     'false' if v else 'true',
+        'transform': lambda v: str(v).casefold() != 'true',
     },
 
     # All IA fields given on:
@@ -264,7 +258,7 @@ def sip_parse(source):
     """
     result = {}
     text = source if isinstance(source, str) else source.getvalue()
-    root = XML.fromstring(text)
+    root = Xml.fromstring(text)
     for child in root:
         name = child.tag
         # attr = child.attrib
@@ -283,7 +277,7 @@ def sip_node_value(node):
     """
     Extract the value of an XML node from a Submission Information Package.
 
-    :param XML.Element node: An XML node.
+    :param Xml.Element node: An XML node.
 
     :return: The value contained by the node.
     :rtype:  str|number|bool|list
@@ -295,13 +289,11 @@ def sip_node_value(node):
             value = sip_node_value(child)
             if is_present(value):
                 result.append(value)
-    elif node.text == 'true':
-        result = True
-    elif node.text == 'false':
-        result = False
+        return result
     else:
-        result = node.text
-    return result
+        text   = node.text
+        value  = text.casefold() if isinstance(text, str) else None
+        return True if value == 'true' else False if value == 'false' else text
 
 
 # =============================================================================
@@ -312,5 +304,3 @@ def sip_node_value(node):
 if __name__ == '__main__':
     from tests.emma import trials
     trials()
-    show('')
-    show('DONE')

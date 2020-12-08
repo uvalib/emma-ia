@@ -1,13 +1,9 @@
-# common.py
+# app/util.py
 #
-# Common definitions.
+# Utility functions.
 
-# noinspection PyUnresolvedReferences
-import logging
-import os
 
-# noinspection PyUnresolvedReferences
-from typing import Union, Dict, List, Optional, ItemsView, KeysView, ValuesView
+import typing
 
 
 # =============================================================================
@@ -15,10 +11,9 @@ from typing import Union, Dict, List, Optional, ItemsView, KeysView, ValuesView
 # =============================================================================
 
 
-DEPLOYMENT = os.environ.get('DEPLOYMENT', 'staging')
-
-FALSE_VALUES = ['0', 'no',  'false', 'off']
-TRUE_VALUES  = ['1', 'yes', 'true',  'on']
+FALSE_VALUES = ('0', 'no',  'false', 'off')
+TRUE_VALUES  = ('1', 'yes', 'true',  'on')
+ENUMERABLE   = (list, tuple, set, typing.AbstractSet)
 
 
 # =============================================================================
@@ -41,14 +36,14 @@ def is_present(value) -> bool:
     return not is_blank(value)
 
 
-def is_lambda(item):
+def is_lambda(item) -> bool:
     """
     Indicate whether the argument is a lambda.
     """
     return isinstance(item, type(lambda: 0))
 
 
-def is_false(item):
+def is_false(item) -> bool:
     """
     Indicate whether the argument is or represents a False value.
     """
@@ -58,7 +53,7 @@ def is_false(item):
         return isinstance(item, bool) and not item
 
 
-def is_true(item):
+def is_true(item) -> bool:
     """
     Indicate whether the argument is or represents a True value.
     """
@@ -72,13 +67,25 @@ def to_list(value, default=None) -> list:
     """
     Transform value to a list, or the default if value is blank.
     """
-    if isinstance(value, list):
-        return value
-    elif isinstance(value, tuple):
-        return list(value)
-    elif is_present(value):
-        return [value]
-    elif default is None:
-        return []
-    else:
-        return default if isinstance(default, list) else [default]
+
+    if isinstance(value, ENUMERABLE):   return list(value)
+    if is_present(value):               return [value]
+    if default is None:                 return []
+    return to_list(default)
+
+
+def to_tuple(value, default=None) -> tuple:
+    """
+    Transform value to a tuple, or the default if value is blank.
+    """
+    if isinstance(value, ENUMERABLE):   return tuple(value)
+    if is_present(value):               return tuple(to_list(value))
+    if default is None:                 return tuple()
+    return to_tuple(default)
+
+
+def pluralize(value: str, count: int = 0) -> str:
+    value  = value.strip() if value else ''
+    single = (count == 1) or not value or value.casefold().endswith('s')
+    suffix = '' if single else 'S' if value[-1].isupper() else 's'
+    return f"{value}{suffix}"
