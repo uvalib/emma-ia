@@ -67,7 +67,6 @@ def to_list(value, default=None) -> list:
     """
     Transform value to a list, or the default if value is blank.
     """
-
     if isinstance(value, ENUMERABLE):   return list(value)
     if is_present(value):               return [value]
     if default is None:                 return []

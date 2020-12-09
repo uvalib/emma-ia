@@ -255,7 +255,7 @@ def s3_object_count(obj, bucket=None, s3_item=None) -> int:
         name    = obj
         bucket  = get_s3_bucket(bucket, s3_item).name
     response = s3_client(s3_item).list_objects_v2(Bucket=bucket, Prefix=name)
-    return response['KeyCount'] or 0
+    return response.get('KeyCount') or 0
 
 
 def s3_object_exists(obj, bucket=None, s3_item=None) -> bool:

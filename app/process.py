@@ -170,22 +170,27 @@ def upload_submissions(submissions, bucket=None):
         emma_metadata = submission.metadata
         metadata = ia_metadata(emma_metadata)
 
+        # Determine the target IA item.
+        ia_id = metadata.get('identifier')
+        if not ia_id:
+            log_error(f"empty emma_repositoryRecordId for {sid}")
+            continue
+
         # Download a copy of the submitted data file.
         file = submission.data_file
         obj  = s3_bucket.Object(file)  # type: s3.Object
         size = obj.content_length
-        tmp  = f"{metadata['identifier']}_emma_{file}"
+        tmp  = f"{ia_id}_emma_{file}"
         obj.download_file(tmp)
 
         # Upload the submitted data file to IA.
-        ia_id = emma_metadata.get('emma_repositoryRecordId')
         if DEBUG:
             _to = '[DRY RUN]' if DRY_RUN else 'TO IA'
             show_header(f'SUBMIT "{ia_id}" (file {file} - {size} bytes) {_to}')
         session = session or ia_get_session()
-        submission.completed = ia_upload(
+        submission.completed = ia_upload_file(
             target=ia_id,
-            files=tmp,
+            file=tmp,
             metadata=metadata,
             delete=True,
             dry_run=DRY_RUN,
@@ -215,12 +220,13 @@ def remove_submissions(submissions, bucket=None):
         if submission.completed:
             object_keys.append(submission.package)
             object_keys.append(submission.data_file)
-    if not DRY_RUN:
-        bucket = _s3_bucket or bucket
-        if DEBUG:
-            bucket_name = bucket if isinstance(bucket, str) else bucket.name
-            show_header(f"DELETING {bucket_name} OBJECTS:")
-            show(object_keys)
+    bucket = _s3_bucket or bucket
+    if DEBUG:
+        bucket_name = bucket.name if is_s3_bucket(bucket) else bucket
+        deleting    = 'ELIGIBLE FOR DELETION' if DRY_RUN else 'DELETING'
+        show_header(f"{deleting} {bucket_name} OBJECTS:")
+        show(object_keys or 'NONE')
+    if object_keys and not DRY_RUN:
         delete_from_s3_bucket(object_keys, bucket)
     return object_keys
 

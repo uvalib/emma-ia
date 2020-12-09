@@ -8,8 +8,7 @@ import tempfile
 
 from internetarchive import ArchiveSession
 from internetarchive import Item
-from requests        import Response
-from requests.models import PreparedRequest
+from requests        import Response, PreparedRequest
 
 from app.common import *
 
@@ -18,6 +17,11 @@ from app.common import *
 # Constants
 # =============================================================================
 
+
+# In general, it's probably better to avoid attempting to change title-level
+# metadata for the IA item -- specific remediation metadata should be
+# associated with the file.
+UPDATE_IA_TITLE_METADATA = False
 
 IA_CONFIG = {
     's3': {
@@ -33,6 +37,125 @@ IA_CONFIG = {
         'logged-in-sig':  os.getenv('IA_SIG_COOKIE')
     }
 }
+
+IA_METADATA_FIELDS = [
+    # All IA fields given on:
+    # @see https://archive.org/services/docs/api/metadata-schema/index.html?highlight=metadata%20fields
+    #
+    # NOTES:
+    # [1] See on https://archive.org/metadata/twoviewsofgettys0000unse
+    #
+    # FIELD                     RANGE/PATTERN                       INTERNAL
+    # =======================   ==================================  ===========
+    'access-restricted',        # True                                yes
+    'access-restricted-item',   # True
+    'adaptive_ocr',             # True
+    'addeddate',                # YYYY-MM-DD HH:MM:SS YYYY-MM-DD
+    'aspect_ratio',             # N:M
+#   'associated-names',         # NOTE: [1]
+    'audio_codec',              # (str)
+    'audio_sample_rate',        # (float)
+#   'backup_location',          # NOTE: [1]
+    'betterpdf',                # True
+#   'bookplateleaf',            # NOTE: [1]
+    'bookreader-defaults',      # mode/1up mode/2up mode/thumb
+    'boxid',                    # IA######                            yes
+    'bwocr',                    # (page range)
+    'call_number',              # (string)
+    'camera',                   # (string)
+    'ccnum',                    # cc# asr ocr #
+    'closed_captioning',        # "yes"/"no"
+    'collection',               # valid identifier
+#   'collection_set',           # NOTE: [1]
+    'color',                    # (str)
+    'condition',                # "Near Mint", "Very Good", "Good", "Fair", "Worn", "Poor", "Fragile", "Incomplete"
+    'condition-visual',         # "Near Mint", "Very Good", "Good", "Fair", "Worn", "Poor", "Fragile"
+    'contributor',              # (str)
+    'coverage',                 # (str)
+    'creator',                  # (str)
+    'creator-alt-script',
+    'curation',                 # (str)                               yes
+    'date',                     # (str)
+    'description',              # (str)
+    'external-identifier',      # (str)
+    'firstfiledate',
+    'fixed-ppi',                # (float)
+    'foldoutcount',             # (int)
+    'frames_per_second',        # (float)
+    'geo_restricted',           # e.g. "US"
+    'hidden',                   # True                                yes
+    'identifier',               # (str)
+#   'identifier-access',        # NOTE: [1]
+    'identifier-ark',           # ark:/NAAN/Name
+    'identifier-bib',           # (str)
+    'imagecount',               # (int)
+#   'invoice',                  # NOTE: [1]
+    'isbn',                     # ISBN
+    'issn',                     # ISSN
+    'language',                 # ISO
+    'lastfiledate',
+    'lccn',                     # LCCN
+    'licenseurl',               # (URL)
+    'mediatype',                # "texts", "etree", "audio", "movies", "software", "image", "data", "web", "collection", "account"
+    'neverindex',               # True
+    'next_item',
+    'no_ol_import',
+    'noindex',                  # True                                yes
+    'notes',                    # (str)
+    'oclc-id',                  # (str)
+    'ocr',                      # (str)
+#   'old_pallet',               # NOTE: [1]
+    'openlibrary',
+    'openlibrary_author',       # OL#A
+    'openlibrary_edition',
+    'openlibrary_subject',
+    'openlibrary_work',
+    'operator',
+    'page-progression',
+    'possible-copyright-status',
+    'ppi',
+    'previous_item',
+    'public-format',            # (str)                               yes
+    'publicdate',
+    'publisher',                # (str)
+    'related_collection',
+    'related-external-id',
+    'repub_state',
+    'republisher',
+    'republisher_date',
+    'republisher_operator',
+    'republisher_time',
+    'rights',
+    'runtime',
+    'scandate',
+    'scanfee',
+    'scanner',
+    'scanningcenter',
+#   'scribe3_search_catalog',   # NOTE: [1]
+#   'scribe3_search_id',        # NOTE: [1]
+    'show_related_music_by_track',
+    'skip_ocr',
+    'sort-by',
+    'sound',
+    'source',
+    'source_pixel_height',
+    'source_pixel_width',
+    'sponsor',
+    'sponsordate',
+    'start_localtime',
+    'start_time',
+    'stop_time',
+    'subject',
+    'summary',
+    'title',
+    'title_message',
+#   'tts_version',              # NOTE: [1]
+#   'uploader',                 # NOTE: [1]
+]
+
+# IA metadata fields that should be treated as file-level not title-level
+# metadata.
+IA_FILE_METADATA_FIELDS = to_tuple('contributor')
 
 
 # =============================================================================
@@ -96,21 +219,20 @@ def ia_search(terms, count=10, fields=None, session=None):
         return []
 
 
-def ia_upload(
+def ia_upload_file(
         target,
-        files,
+        file,
         metadata=None,
         delete=False,
         overwrite=False,
         dry_run=False,
         session=None):
     """
-    Upload one or more files to be associated with the given Internet Archive
-    title entry.
+    Upload a file to be associated with the given Internet Archive title entry.
 
     :param str|Item       target:       IA title identifier or Item instance.
-    :param str|list       files:        One or more file paths.
-    :param dict           metadata:
+    :param str            file:         A file path.
+    :param dict           metadata:     A mix of title- and file-level metadata
     :param bool           delete:       Delete local files after use.
     :param bool           overwrite:    Force re-upload of an existing item [1]
     :param bool           dry_run:      Don't actually send to IA.
@@ -127,19 +249,24 @@ def ia_upload(
         IA's S3 storage.
 
     """
-    success      = False
-    files        = to_list(files)
-    # checksum     = True   # Guard against re-upload by default.
-    checksum     = False  # TODO: See Note [1] above.
-    remove_files = False  # By default, upload() will remove each temp file.
+    success   = False
+    # checksum  = True   # Guard against re-upload by default.
+    checksum  = False    # TODO: See Note [1] above.
+    cleanup   = dry_run  # By default, upload() will remove each temp file.
     if overwrite:
         checksum = False
         if delete:
             # If *delete* is True then upload() has a feature(?) where checksum
             # is set to True unconditionally.  To avoid that, handle temp file
             # cleanup here.
-            remove_files = True
-            delete       = False
+            cleanup = True
+            delete  = False
+    show_results = dry_run or (IA_DEBUG and not APPLICATION_DEPLOYED)
+
+    # Associate non-title-level metadata with the file.
+    [title_metadata, file_metadata] = ia_partition_metadata(metadata)
+    file_metadata.update(name=file)  # Needed for a dict argument to upload().
+
     try:
         if isinstance(target, str):
             session = session or ia_get_session()
@@ -147,33 +274,64 @@ def ia_upload(
         else:
             item = target
         result = item.upload(
-            files,
-            metadata=metadata,
+            file_metadata,          # NOTE: file_metadata['name'] is the file
+            metadata=None,          # NOTE: must use modify_metadata() below
             queue_derive=False,
             verbose=True,
             delete=delete,
             checksum=checksum,
             debug=dry_run
         )
-        success = (len(result) == len(files))
-        if dry_run:
-            for request in result:     # type: PreparedRequest
-                _show_prepared_request(request)
-        elif success:
-            for response in result:    # type: Response
-                success = success and response.ok
+        success = is_present(result)
+        cleanup = cleanup or not success
+        for part in result:
+            show_results and _show_response(part)
+            if 'ok' in dir(part):
+                success = success and part.ok
+        if success and UPDATE_IA_TITLE_METADATA:
+            result = item.modify_metadata(title_metadata, debug=dry_run)
+            if show_results:
+                for part in result:
+                    _show_response(part)
     except Exception as error:
         log_error(error)
+        cleanup = cleanup or not success
         success = False
     finally:
-        if success and remove_files and not dry_run:
-            for file in files:
-                os.remove(file)
+        if cleanup:
+            os.remove(file)
     return success
 
 
-def _show_prepared_request(item: PreparedRequest):
-    show(f"{item.method} {item.url}")
+def ia_partition_metadata(metadata):
+    """
+    Separate a mix of title-level and file-level metadata.
+
+    :param dict metadata:
+
+    :return: Title-level metadata then file-level metadata.
+    :rtype:  list[dict,dict]
+
+    """
+    title_metadata = {}
+    file_metadata  = {}
+    for k, v in metadata.items():
+        if k in IA_FILE_METADATA_FIELDS or k not in IA_METADATA_FIELDS:
+            file_metadata[k]  = v
+        else:
+            title_metadata[k] = v
+    return [title_metadata, file_metadata]
+
+
+def _show_response(item, prefix=None):
+    """
+    :param Response|PreparedRequest item:
+    :param str|None                 prefix:     Prefix for heading line.
+    """
+    prefix = '' if prefix is None else prefix
+    prefix = prefix if not prefix or prefix.endswith(' ') else f"{prefix} "
+    tag    = f"{item.method} {item.url}" if 'method' in dir(item) else item.url
+    show(f">>> {prefix}{tag}")
     show(dict(item.headers), width=PP_WIDE)
 
 
