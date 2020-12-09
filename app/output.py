@@ -112,21 +112,25 @@ def show_section(value=None, width=CONSOLE_WIDTH, gap=2, prefix=None):
     _show_lines(*lines, prefix=prefix)
 
 
-def show_header(value, width=CONSOLE_WIDTH, prefix=None):
+def show_header(value, width=CONSOLE_WIDTH, prefix=None, bar='-'):
     """
     Output a heading.
 
     :param str      value:  Heading label.
     :param int      width:  Width of output line.
     :param str|None prefix: String prepended to every output line.
+    :param str|None bar:    Character for the horizontal bar; if longer than
+                                one character, it is used directly; if None
+                                then no horizontal bar is shown.
 
     """
-    width -= 1
-    h_bar = '-' * min(len(value), width)
-    if APPLICATION_DEPLOYED:
-        lines = [value, h_bar]
-    else:
-        lines = ['', value, h_bar]
+    lines = [] if APPLICATION_DEPLOYED else ['']
+    lines.append(value)
+    if bar:
+        if len(bar) == 1:
+            limit = max(1, (width - 1))
+            bar   = bar * min(len(value), limit)
+        lines.append(bar)
     _show_lines(*lines, prefix=prefix)
 
 

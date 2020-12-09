@@ -252,7 +252,7 @@ def ia_upload_file(
     success   = False
     # checksum  = True   # Guard against re-upload by default.
     checksum  = False    # TODO: See Note [1] above.
-    cleanup   = dry_run  # By default, upload() will remove each temp file.
+    cleanup   = False    # By default, upload() will remove each temp file.
     if overwrite:
         checksum = False
         if delete:
@@ -284,10 +284,13 @@ def ia_upload_file(
         )
         success = is_present(result)
         cleanup = cleanup or not success
-        for part in result:
-            show_results and _show_response(part)
-            if 'ok' in dir(part):
-                success = success and part.ok
+        try:
+            for part in result:
+                show_results and _show_response(part)
+                if 'ok' in dir(part):
+                    success = success and part.ok
+        except TypeError:
+            success = False  # Ignore bug when Response.status_code == None
         if success and UPDATE_IA_TITLE_METADATA:
             result = item.modify_metadata(title_metadata, debug=dry_run)
             if show_results:

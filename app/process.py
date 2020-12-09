@@ -221,7 +221,7 @@ def remove_submissions(submissions, bucket=None):
             object_keys.append(submission.package)
             object_keys.append(submission.data_file)
     bucket = _s3_bucket or bucket
-    if DEBUG:
+    if DEBUG and (object_keys or not APPLICATION_DEPLOYED):
         bucket_name = bucket.name if is_s3_bucket(bucket) else bucket
         deleting    = 'ELIGIBLE FOR DELETION' if DRY_RUN else 'DELETING'
         show_header(f"{deleting} {bucket_name} OBJECTS:")
