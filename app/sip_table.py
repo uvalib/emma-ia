@@ -1,8 +1,9 @@
-# sip_table.py
+# app/sip_table.py
 #
 # A table associating a SID (submission ID) with a Sip instance.
 
-from sip import *
+
+from app.sip import *
 
 
 class SipTable:

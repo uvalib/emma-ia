@@ -1,24 +1,20 @@
-# emma.py
+# app/emma.py
 #
 # EMMA metadata definitions.
+
 
 import re
 import io
 
-# noinspection PyPep8Naming
-import xml.etree.ElementTree as XML
+import xml.etree.ElementTree as Xml
 
-# noinspection PyUnresolvedReferences
-from common import *
-from output import *
+from app.common import *
 
 
 # =============================================================================
 # Constants
 # =============================================================================
 
-
-EMMA_DEBUG = is_true(os.environ.get('EMMA_DEBUG', True))
 
 EMMA_FIELD_MAP: Dict[str, Union[str, Dict[str, Union[str, Dict]]]] = {
 
@@ -77,109 +73,8 @@ EMMA_FIELD_MAP: Dict[str, Union[str, Dict[str, Union[str, Dict]]]] = {
     # -------------------------------------------------------------------------
     'rem_complete': {
         'field':     'portion',
-        'transform': lambda v:  # portion => !complete
-                     v.lower() != 'true' if isinstance(v, str) else \
-                     'false' if v else 'true',
+        'transform': lambda v: str(v).casefold() != 'true',
     },
-
-    # All IA fields given on:
-    # @see https://archive.org/services/docs/api/metadata-schema/index.html?highlight=metadata%20fields
-    #
-    # FIELD                     RANGE/PATTERN                       INTERNAL
-    # =======================   ==================================  ===========
-    # access-restricted         True                                yes
-    # access-restricted item    True
-    # adaptive_ocr              True
-    # addeddate                 YYYY-MM-DD HH:MM:SS YYYY-MM-DD
-    # aspect_ratio              N:M
-    # audio_codec               (str)
-    # audio_sample_rate         (float)
-    # betterpdf                 True
-    # bookreader-defaults       mode/1up mode/2up mode/thumb
-    # boxid                     IA######                            yes
-    # bwocr                     (page range)
-    # call_number               (string)
-    # camera                    (string)
-    # ccnum                     cc# asr ocr #
-    # closed_captioning         "yes"/"no"
-    # collection                valid identifier
-    # color                     (str)
-    # condition                 "Near Mint", "Very Good", "Good", "Fair", "Worn", "Poor", "Fragile", "Incomplete"
-    # condition-visual          "Near Mint", "Very Good", "Good", "Fair", "Worn", "Poor", "Fragile"
-    # contributor               (str)
-    # coverage                  (str)
-    # creator                   (str)
-    # creator-alt-script
-    # curation                  (str)                               yes
-    # date                      (str)
-    # description               (str)
-    # external-identifier       (str)
-    # firstfiledate
-    # fixed-ppi                 (float)
-    # foldoutcount              (int)
-    # frames_per_second         (float)
-    # geo_restricted            e.g. "US"
-    # hidden                    True                                yes
-    # identifier                (str)
-    # identifier-ark            ark:/NAAN/Name
-    # identifier-bib            (str)
-    # imagecount                (int)
-    # isbn                      ISBN
-    # issn                      ISSN
-    # language                  ISO
-    # lastfiledate
-    # lccn                      LCCN
-    # licenseurl                (URL)
-    # mediatype                 "texts", "etree", "audio", "movies", "software", "image", "data", "web", "collection", "account"
-    # neverindex                True
-    # next_item
-    # no_ol_import
-    # noindex                   True                                yes
-    # notes                     (str)
-    # oclc-id                   (str)
-    # ocr                       (str)
-    # openlibrary
-    # openlibrary_author        OL#A
-    # openlibrary_edition
-    # openlibrary_subject
-    # openlibrary_work
-    # operator
-    # page-progression
-    # possible-copyright-status
-    # ppi
-    # previous_item
-    # public-format             (str)                               yes
-    # publicdate
-    # publisher                 (str)
-    # related_collection
-    # related-external-id
-    # repub_state
-    # republisher
-    # republisher_date
-    # republisher_operator
-    # republisher_time
-    # rights
-    # runtime
-    # scandate
-    # scanfee
-    # scanner
-    # scanningcenter
-    # show_related_music_by_track
-    # skip_ocr
-    # sort-by
-    # sound
-    # source
-    # source_pixel_height
-    # source_pixel_width
-    # sponsor
-    # sponsordate
-    # start_localtime
-    # start_time
-    # stop_time
-    # subject
-    # summary
-    # title
-    # title_message
 
 }
 
@@ -264,7 +159,7 @@ def sip_parse(source):
     """
     result = {}
     text = source if isinstance(source, str) else source.getvalue()
-    root = XML.fromstring(text)
+    root = Xml.fromstring(text)
     for child in root:
         name = child.tag
         # attr = child.attrib
@@ -283,7 +178,7 @@ def sip_node_value(node):
     """
     Extract the value of an XML node from a Submission Information Package.
 
-    :param XML.Element node: An XML node.
+    :param Xml.Element node: An XML node.
 
     :return: The value contained by the node.
     :rtype:  str|number|bool|list
@@ -295,13 +190,11 @@ def sip_node_value(node):
             value = sip_node_value(child)
             if is_present(value):
                 result.append(value)
-    elif node.text == 'true':
-        result = True
-    elif node.text == 'false':
-        result = False
+        return result
     else:
-        result = node.text
-    return result
+        text   = node.text
+        value  = text.casefold() if isinstance(text, str) else None
+        return True if value == 'true' else False if value == 'false' else text
 
 
 # =============================================================================
@@ -312,5 +205,3 @@ def sip_node_value(node):
 if __name__ == '__main__':
     from tests.emma import trials
     trials()
-    show('')
-    show('DONE')

@@ -1,75 +1,19 @@
-# aws.py
+# app/aws_s3.py
 #
-# AWS interface definitions.
+# AWS S3 interface definitions.
+
 
 import re
 import boto3
-import boto3_type_annotations.s3      as s3
-import boto3_type_annotations.sqs     as sqs
-import boto3_type_annotations.lambda_ as lam
+import boto3_type_annotations.s3 as s3
 
 from botocore.exceptions import ClientError
 
-# noinspection PyUnresolvedReferences
-from common import *
-from output import *
+from app.common import *
 
 
 # =============================================================================
-# Constants
-# =============================================================================
-
-
-AWS_DEBUG = is_true(os.environ.get('AWS_DEBUG', True))
-
-REPO_TABLE = {
-    'ia': 'archive',
-    'ht': 'hathi',
-    'bs': 'bookshare'
-}
-
-DEF_QUEUE_DELAY = 0  # 2
-
-
-# =============================================================================
-# AWS S3 repository buckets
-# =============================================================================
-
-
-def emma_bucket_name(deployment=None) -> str:
-    return bucket_name('emma', deployment)
-
-
-def bs_bucket_name(deployment=None) -> str:
-    return bucket_name('bs', deployment)
-
-
-def ht_bucket_name(deployment=None) -> str:
-    return bucket_name('ht', deployment)
-
-
-def ia_bucket_name(deployment=None) -> str:
-    return bucket_name('ia', deployment)
-
-
-def bucket_name(repo, deployment=None) -> str:
-    repo = str(repo).casefold()
-    if repo == 'emma':
-        area = 'storage'
-    elif repo in REPO_TABLE:
-        area = f"{repo}-queue"
-    else:
-        for code, name in REPO_TABLE.items():
-            if re.search(name, repo):
-                repo = code
-                break
-        area = f"{repo}-queue"
-    deployment = deployment or DEPLOYMENT
-    return f"emma-{area}-{deployment}"
-
-
-# =============================================================================
-# AWS S3
+# AWS S3 class instances
 # =============================================================================
 
 
@@ -103,6 +47,35 @@ def s3_resource(item) -> s3.ServiceResource:
         return item
     else:
         return boto3.resource('s3')
+
+
+# =============================================================================
+# AWS S3 buckets
+# =============================================================================
+
+
+def s3_bucket_name(repo, deployment) -> str:
+    """
+    Return with the S3 bucket associated with the given repository for the
+    given deployment.
+
+    :param str|None repo:           Member repository (def: DEF_REPO).
+    :param str|None deployment:     One of DEPLOYMENTS (def: DEF_DEPLOYMENT).
+
+    """
+    repo = str(repo).casefold() if repo else DEF_REPO
+    if repo == 'emma':
+        area = 'storage'
+    elif repo in REPO_TABLE:
+        area = f"{repo}-queue"
+    else:
+        for code, name in REPO_TABLE.items():
+            if re.search(name, repo):
+                repo = code
+                break
+        area = f"{repo}-queue"
+    deployment = str(deployment).casefold() if deployment else DEF_DEPLOYMENT
+    return f"emma-{area}-{deployment}"
 
 
 def get_s3_bucket(bucket, s3_res=None) -> s3.Bucket:
@@ -139,8 +112,7 @@ def create_s3_bucket(name, region=None, s3_item=None) -> bool:
     try:
         s3_item.create_bucket(Bucket=name, CreateBucketConfiguration=config)
     except ClientError as error:
-        AWS_DEBUG and show(f'\tERROR: {error}')
-        logging.error(error)
+        log_error(error)
         return False
     return True
 
@@ -182,8 +154,7 @@ def upload_to_s3_bucket(file_path, bucket, object_key=None, s3_item=None):
             bucket = get_s3_bucket(bucket, s3_item)
             bucket.upload_file(file_path, object_key)
     except ClientError as error:
-        AWS_DEBUG and show(f'\tERROR: {error}')
-        logging.error(error)
+        log_error(error)
         return False
     return True
 
@@ -213,8 +184,7 @@ def download_from_s3_bucket(object_key, bucket, file_path=None, s3_item=None):
             bucket = get_s3_bucket(bucket, s3_item)
             bucket.download_file(object_key, file_path)
     except ClientError as error:
-        AWS_DEBUG and show(f'\tERROR: {error}')
-        logging.error(error)
+        log_error(error)
         return False
     return True
 
@@ -232,8 +202,7 @@ def delete_from_s3_bucket(object_keys, bucket, s3_item=None):
 
     """
     object_list = []
-    keys = [object_keys] if isinstance(object_keys, str) else object_keys
-    for key in keys:
+    for key in to_list(object_keys):
         object_list.append({'Key': key})
     if object_list:
         try:
@@ -244,161 +213,90 @@ def delete_from_s3_bucket(object_keys, bucket, s3_item=None):
                 bucket = get_s3_bucket(bucket, s3_item)
                 bucket.delete_objects(Delete={'Objects': object_list})
         except ClientError as error:
-            AWS_DEBUG and show(f'\tERROR: {error}')
-            logging.error(error)
+            log_error(error)
             return False
     return True
 
 
 # =============================================================================
-# AWS SQS
+# AWS S3 objects
 # =============================================================================
 
 
-def is_sqs_client(item) -> bool:
-    return 'list_queues' in dir(item)
+def prefix_of(obj):
+    """
+    Extract the prefix of an object key.
+
+    :param str|s3.Object obj:   An object key or prefix (ending with '/').
+
+    :return: Either '' or a string ending with '/'.
+    :rtype:  str
+
+    """
+    obj   = obj.key if is_s3_object(obj) else obj or ''
+    parts = obj.split('/')
+    parts.pop()
+    return '/'.join(parts) + '/' if parts else ''
 
 
-def is_sqs_resource(item) -> bool:
-    return 'queues' in dir(item)
+def s3_object_count(obj, bucket=None, s3_item=None) -> int:
+    """
+    The number of matching objects in the bucket.
 
+    :param str|s3.Object obj:       An object key or prefix (ending with '/').
+    :param str|s3.Bucket bucket:    Bucket name.
+    :param s3.Client|s3.ServiceResource s3_item:
 
-def sqs_client(item) -> sqs.Client:
-    if is_sqs_client(item):
-        return item
-    elif is_sqs_resource(item):
-        return item.meta.client
+    """
+    if is_s3_object(obj):
+        name    = obj.key
+        bucket  = obj.bucket_name
     else:
-        return boto3.client('sqs')
+        name    = obj
+        bucket  = get_s3_bucket(bucket, s3_item).name
+    response = s3_client(s3_item).list_objects_v2(Bucket=bucket, Prefix=name)
+    return response.get('KeyCount') or 0
 
 
-def sqs_resource(item) -> sqs.ServiceResource:
-    if is_sqs_resource(item):
-        return item
-    else:
-        return boto3.resource('sqs')
-
-
-def sqs_queue_name(queue: sqs.Queue) -> str:
-    return queue.attributes['QueueArn'].split(':')[-1]
-
-
-def get_sqs_queue(queue_name, sqs_res=None) -> Optional[sqs.Queue]:
+def s3_object_exists(obj, bucket=None, s3_item=None) -> bool:
     """
-    :param str queue_name:
-    :param sqs.ServiceResource sqs_res:
+    Indicate whether the bucket has any matching objects.
+
+    :param str|s3.Object obj:       An object key or prefix (ending with '/').
+    :param str|s3.Bucket bucket:    Bucket name.
+    :param s3.Client|s3.ServiceResource s3_item:
+
     """
-    sqs_res = sqs_resource(sqs_res)
+    return s3_object_count(obj, bucket, s3_item) > 0
+
+
+def s3_object_rename(obj, new_key, bucket=None, s3_item=None):
+    """
+    Rename an object by replacing it with an object of the given object key.
+    
+    :param str|s3.Object obj:       Object with the original key name.
+    :param str           new_key:   Name for the replacement object.
+    :param str|s3.Bucket bucket:    Bucket name.
+    :param s3.Client|s3.ServiceResource s3_item:
+    
+    :return: The renamed (replacement) object.
+    :rtype:  s3.Object|None
+    
+    """
+    result = None
     try:
-        queue = sqs_res.get_queue_by_name(QueueName=queue_name)
+        if is_s3_object(obj):
+            obj_key = obj.key
+            bucket  = bucket or obj.bucket_name
+            bucket  = get_s3_bucket(bucket, s3_item)
+        else:
+            obj_key = obj
+            bucket  = get_s3_bucket(bucket, s3_item)
+            obj     = bucket.Object(obj_key)
+        new_obj = bucket.Object(new_key)
+        new_obj.copy_from(CopySource={'Bucket': bucket.name, 'Key': obj_key})
+        obj.delete()
+        result = new_obj
     except ClientError as error:
-        AWS_DEBUG and show(f'\tERROR: {error}')
-        logging.error(error)
-        queue = None
-    return queue
-
-
-def create_sqs_queue(queue_name, delay=DEF_QUEUE_DELAY, sqs_obj=None):
-    """
-    :param str queue_name:
-    :param str|int delay:   Queue update delay.
-    :param sqs.Client|sqs.ServiceResource sqs_obj:
-
-    :return: The queue instance.
-    :rtype:  sqs.Queue|None
-
-    """
-    sqs_obj = sqs_obj or sqs_resource(sqs_obj)
-    attr    = {'DelaySeconds': str(delay)}
-    try:
-        queue = sqs_obj.create_queue(QueueName=queue_name, Attributes=attr)
-    except ClientError as error:
-        AWS_DEBUG and show(f'QUEUE ALREADY EXISTS? - %{error}')
-        queue = get_sqs_queue(queue_name, sqs_obj)
-    if queue and AWS_DEBUG:
-        show(sqs_queue_name(queue))
-        show({**{'url': queue.url}, **queue.attributes})
-    return queue
-
-
-def delete_sqs_queue(queue_name, sqs_obj=None):
-    """
-    :param str queue_name:
-    :param sqs.Client|sqs.ServiceResource sqs_obj:
-    """
-    try:
-        queue = get_sqs_queue(queue_name, sqs_obj)
-    except ClientError as error:
-        AWS_DEBUG and show(f'\tERROR: {error}')
-        queue = None
-    if queue:
-        sqs_cli = sqs_client(sqs_obj)
-        sqs_cli.delete_queue(QueueUrl=queue.url)
-
-
-# =============================================================================
-# AWS Lambda
-# =============================================================================
-
-
-# @see https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
-LAMBDA_RUNTIMES = [
-    'nodejs12.x',
-    'nodejs10.x',
-    'python3.8',
-    'python3.7',
-    'python3.6',
-    'python2.7',
-    'ruby2.7',
-    'ruby2.5',
-    'java11',
-    'java8.a12',
-    'java8',
-    'go1.x',
-    'dotnetcore3.1',
-    'dotnetcore2.1',
-    'provided.al2',     # Custom runtime - Amazon Linux 2
-    'provided',         # Custom runtime - Amazon Linux
-]
-
-
-def get_lambda_client() -> lam.Client:
-    return boto3.client('lambda')
-
-
-def get_lambda_functions(cli=None, all_versions=False) -> List[Dict]:
-    """
-    :param lam.Client cli:
-    :param bool       all_versions:
-    """
-    cli = cli or get_lambda_client()
-    kwargs = {}
-    if all_versions:
-        kwargs['FunctionVersion'] = 'ALL'
-    result = cli.list_functions(**kwargs)
-    result = result.get('Functions', ['FAIL'])
+        DEBUG and show(f'\tERROR: {error} (obj_key = "{obj_key}")')
     return result
-
-
-def get_lambda_function_names(cli=None) -> List[str]:
-    """
-    :param lam.Client cli:
-    """
-    result = []
-    for entry in get_lambda_functions(cli):
-        name = entry.get('FunctionName')
-        if name:
-            result.append(name)
-    return result
-
-
-# =============================================================================
-# Command-line tests.
-# =============================================================================
-
-
-if __name__ == '__main__':
-    from tests.aws import trials
-    trials()
-    show('')
-    show('DONE')
