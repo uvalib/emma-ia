@@ -1,4 +1,8 @@
-FROM python:3.8-buster
+#
+#
+#
+
+FROM public.ecr.aws/docker/library/python:3.8-slim-buster
 
 # update the packages
 RUN apt update
@@ -45,3 +49,7 @@ RUN touch $APP_HOME/buildtag.build-$BUILD_TAG
 # Define port and startup script
 EXPOSE 8080
 CMD scripts/entry.sh
+
+#
+# end of file
+#
