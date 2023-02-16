@@ -1,8 +1,4 @@
-#
-#
-#
-
-FROM public.ecr.aws/docker/library/python:3.8-slim-buster
+FROM public.ecr.aws/docker/library/python:3.8-slim-bullseye
 
 # update the packages
 RUN apt update
