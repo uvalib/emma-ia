@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.8-slim-bullseye
+FROM public.ecr.aws/docker/library/python:3.10-slim-bullseye
 
 # update the packages
 RUN apt update
@@ -12,7 +12,7 @@ ENV APP_HOME=/emma-ia \
 RUN addgroup --quiet --gid 1000 $GROUP && \
     yes | adduser --quiet --uid 1000 --gid 1000 --disabled-login $USER
 
-# set the timezone appropriatly
+# set the timezone appropriately
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Specify home 
